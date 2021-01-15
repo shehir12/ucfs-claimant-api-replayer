@@ -1,15 +1,17 @@
 name: Master
 
-on:
-  push:
-    branches:
-      - master
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
-      - '.gitignore'
-      - 'LICENCE'
-      - 'resources/**'
+on: pull_request
+
+#on:
+#  push:
+#    branches:
+#      - master
+#    paths-ignore:
+#      - 'docs/**'
+#      - '*.md'
+#      - '.gitignore'
+#      - 'LICENCE'
+#      - 'resources/**'
 
 jobs:
   get-publish-version:
@@ -42,7 +44,7 @@ jobs:
           cp src/*.py artifacts/
       - name: Produce zip
         working-directory: ./artifacts
-        run: zip -qq -r ../${{ github.repository }}-${{ needs.get-publish-version.outputs.publish-version }}.zip *
+        run: zip -qq -r ../${{ needs.get-publish-version.outputs.publish-version }}.zip *
       - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@latest
