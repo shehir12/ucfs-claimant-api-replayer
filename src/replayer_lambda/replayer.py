@@ -11,9 +11,6 @@ import base64
 from aws_requests_auth.aws_auth import AWSRequestsAuth
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-# TODO: Ensure from_date & to_date can be optional
-# TODO: Finish the 3 test placeholders, enable GHA & uncomment Make command
-
 
 def setup_logging(logger_level):
     the_logger = logging.getLogger()
@@ -50,7 +47,6 @@ def get_parameters():
     )
 
     # Parse command line inputs and set defaults
-    # TODO: Update README to match these changes
     parser.add_argument("--aws-profile", default="default")
     parser.add_argument("--environment", default="NOT_SET")
     parser.add_argument("--application", default="NOT_SET")
@@ -87,7 +83,7 @@ def get_parameters():
     if "API_HOSTNAME" in os.environ:
         _args.hostname = os.environ["API_HOSTNAME"]
 
-    required_args = ["API_HOSTNAME"]
+    required_args = ["API_REGION", "V1_KMS_REGION", "V2_KMS_REGION", "API_HOSTNAME"]
     missing_args = []
     for required_message_key in required_args:
         if required_message_key not in _args:
@@ -240,7 +236,7 @@ def compare_responses(original, actual, request):
         )
 
     if original.get("suspendedDate"):
-        if original["suspendedDate"] == actual["suspendedDate"]:
+        if original.get("suspendedDate") == actual.get("suspendedDate"):
             logger.info('Suspended date is a match", "status": "match')
         else:
             match = False
@@ -280,8 +276,8 @@ def compare_responses(original, actual, request):
             logger.info(
                 f'Match for assessment period", "status": "match", '
                 f'"transaction_id": {request["transactionId"]}, '
-                f'"AP_from_date": {expected_record["fromDate"]},'
-                f'"AP_to_date": {expected_record["toDate"]}'
+                f'"AP_from_date": {expected_record.get("fromDate")},'
+                f'"AP_to_date": {expected_record.get("toDate")}'
             )
 
             all_assessment_period["actual_list"].remove(expected_record)
@@ -292,8 +288,8 @@ def compare_responses(original, actual, request):
         logger.info(
             f'No match for original response assessment period in replayed assessment period", "status": "miss", '
             f'"transaction_id": {request["transactionId"]}, '
-            f'"AP_from_date": {record["fromDate"]},'
-            f'"AP_to_date": {record["toDate"]}'
+            f'"AP_from_date": {record.get("fromDate")},'
+            f'"AP_to_date": {record.get("toDate")}'
         )
 
     for record in all_assessment_period["actual_list"]:
@@ -301,8 +297,8 @@ def compare_responses(original, actual, request):
         logger.info(
             f'No match for replayed assessment period in original response assessment period", "status": "miss", '
             f'"transaction_id": {request["transactionId"]}, '
-            f'"AP_from_date": {record["fromDate"]},'
-            f'"AP_to_date": {record["toDate"]}'
+            f'"AP_from_date": {record.get("fromDate")},'
+            f'"AP_to_date": {record.get("toDate")}'
         )
 
     return match
