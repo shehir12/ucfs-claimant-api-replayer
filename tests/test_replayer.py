@@ -5,6 +5,11 @@ from copy import deepcopy
 from unittest import mock
 from replayer_lambda.replayer import *
 
+replayer_requests_method = "replayer_lambda.replayer.requests"
+replayer_dates_method = "replayer_lambda.replayer.get_date_time_now"
+app_json_header = "application/json"
+expected_takehome_value = "rkLj7p2vTGD-XTLkm4P-ulLDM6Wtu1cjKDAcDr8dxjKu0w=="
+
 """Tests for the UC Export to Crown Controller Lambda."""
 
 original_data = {
@@ -50,8 +55,8 @@ request_parameters = {
 
 class TestReplayer(unittest.TestCase):
     def test_replay_original_request(self):
-        with mock.patch("replayer_lambda.replayer.requests") as request_mock:
-            with mock.patch("replayer_lambda.replayer.get_date_time_now") as mock_time:
+        with mock.patch(replayer_requests_method) as request_mock:
+            with mock.patch(replayer_dates_method) as mock_time:
                 with mock.patch("replayer_lambda.replayer.logger"):
                     data = """
                     {
@@ -82,7 +87,7 @@ class TestReplayer(unittest.TestCase):
                     args.api_hostname = "api.dev.gov.uk"
 
                     headers = {
-                        "Content-Type": "application/json",
+                        "Content-Type": app_json_header,
                         "X-Amz-Date": "20200113T130000",
                     }
 
@@ -97,19 +102,15 @@ class TestReplayer(unittest.TestCase):
                         headers=headers,
                     )
 
-                    expected_takehome = (
-                        "rkLj7p2vTGD-XTLkm4P-ulLDM6Wtu1cjKDAcDr8dxjKu0w=="
-                    )
-
                     self.assertEqual(
-                        expected_takehome,
+                        expected_takehome_value,
                         result["assessmentPeriod"][0]["amount"]["takeHomePay"],
                     )
                     self.assertTrue(result["claimantFound"])
 
     def test_replay_original_request_with_missing_dates(self):
-        with mock.patch("replayer_lambda.replayer.requests") as request_mock:
-            with mock.patch("replayer_lambda.replayer.get_date_time_now") as mock_time:
+        with mock.patch(replayer_requests_method) as request_mock:
+            with mock.patch(replayer_dates_method) as mock_time:
                 with mock.patch("replayer_lambda.replayer.logger"):
                     request_parameters_copy = deepcopy(request_parameters)
 
@@ -144,7 +145,7 @@ class TestReplayer(unittest.TestCase):
                     args.api_hostname = "api.dev.gov.uk"
 
                     headers = {
-                        "Content-Type": "application/json",
+                        "Content-Type": app_json_header,
                         "X-Amz-Date": "20200113T130000",
                     }
 
@@ -159,12 +160,69 @@ class TestReplayer(unittest.TestCase):
                         headers=headers,
                     )
 
-                    expected_takehome = (
-                        "rkLj7p2vTGD-XTLkm4P-ulLDM6Wtu1cjKDAcDr8dxjKu0w=="
+                    self.assertEqual(
+                        expected_takehome_value,
+                        result["assessmentPeriod"][0]["amount"]["takeHomePay"],
+                    )
+                    self.assertTrue(result["claimantFound"])
+
+                    self.assertNotIn("fromDate", result["assessmentPeriod"][0].keys())
+                    self.assertNotIn("toDate", result["assessmentPeriod"][0].keys())
+
+    def test_replay_original_request_with_empty_dates(self):
+        with mock.patch(replayer_requests_method) as request_mock:
+            with mock.patch(replayer_dates_method) as mock_time:
+                with mock.patch("replayer_lambda.replayer.logger"):
+                    request_parameters_copy = deepcopy(request_parameters)
+
+                    # Removing date keys, the None arg stops a KeyError being raised
+                    request_parameters_copy["fromDate"] = None
+                    request_parameters_copy["toDate"] = None
+
+                    data = """
+                    {
+                      "claimantFound": true,
+                      "assessmentPeriod": [
+                        {
+                          "amount": {
+                            "keyId": "arn:aws:kms:eu-west-1:123456789022:key/this-needs-changing",
+                            "takeHomePay": "rkLj7p2vTGD-XTLkm4P-ulLDM6Wtu1cjKDAcDr8dxjKu0w==",
+                            "cipherTextBlob": "AQIDAHgQyXAXxSvKZWr5lmknNGdf6xcDAe9LpDG9V2tYEZy0uAEtFEdSOypakMgH05OAWwlUAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMKcY_AKlKGKh2lM5aAgEQgDtElbx3A8ErRc9XB_scoHc5-Z9LWyqW1221o3K6JxQiGzNCjvM0K2cTGha11Jl-QbWlbaC3Fhfd7AqI7Q=="
+                          }
+                        }
+                      ]
+                    }
+                    """
+                    post_return_value = mock.Mock()
+                    post_return_value.status_code = 200
+                    post_return_value.text = data
+                    request_mock.post.return_value = post_return_value
+                    mock_time.return_value = "20200113T130000"
+
+                    request_auth = mock.MagicMock()
+                    args = mock.MagicMock()
+
+                    args.hostname = "api.dev.gov.uk"
+                    args.api_hostname = "api.dev.gov.uk"
+
+                    headers = {
+                        "Content-Type": app_json_header,
+                        "X-Amz-Date": "20200113T130000",
+                    }
+
+                    result = replay_original_request(
+                        request_auth, request_parameters_copy, args
+                    )
+
+                    request_mock.post.assert_called_once_with(
+                        f"https://{args.api_hostname}/ucfs-claimant/v1/getAwardDetails",
+                        data="nino=AA123456A&transactionId=42",
+                        auth=request_auth,
+                        headers=headers,
                     )
 
                     self.assertEqual(
-                        expected_takehome,
+                        expected_takehome_value,
                         result["assessmentPeriod"][0]["amount"]["takeHomePay"],
                     )
                     self.assertTrue(result["claimantFound"])
